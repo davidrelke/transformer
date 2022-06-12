@@ -3,6 +3,9 @@ from torch import nn, Tensor
 
 
 class EmbeddingModule(nn.Module):
+    """
+    Simple learned lookup for words
+    """
     def __init__(self, vocabulary_size: int, model_dimensions: int) -> None:
         super().__init__()
         self.embedding = nn.Embedding(num_embeddings=vocabulary_size, embedding_dim=model_dimensions)
@@ -12,10 +15,10 @@ class EmbeddingModule(nn.Module):
 
 
 class PositionalEncoderModule(nn.Module):
-    '''
+    """
     Learned Positional Encodings
     Original Paper uses fixed encodings based on sin/cos functions, but learned should be ok too.
-    '''
+    """
     def __init__(self, max_input_length: int, model_dimensions: int) -> None:
         super().__init__()
         self.embedding = nn.Embedding(num_embeddings=max_input_length, embedding_dim=model_dimensions)
@@ -24,7 +27,31 @@ class PositionalEncoderModule(nn.Module):
         return self.embedding(x)
 
 
+class FeedForwardModule(nn.Module):
+    """
+    Feed Forward Module for the Transformer Block
+    Input (from Multi-head Attention) -> Linear -> ReLu -> Dropout -> Linear
+    """
+    def __init__(self, model_dimensions: int, forward_expansion: int, dropout_rate: float = 0.1):
+        super().__init__()
+        self.linear1 = nn.Linear(in_features=model_dimensions, out_features=model_dimensions * forward_expansion)
+        self.dropout = nn.Dropout(p=dropout_rate)
+        self.linear2 = nn.Linear(in_features=model_dimensions * forward_expansion, out_features=model_dimensions)
+        self.relu = nn.ReLU()
+
+    def forward(self, x) -> Tensor:
+        x = self.linear1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.linear2(x)
+        return x
+
+
 class EncoderModule(nn.Module):
+    """
+    The whole Encoder
+    Consists of Input embedding and multiple Transformer Blocks
+    """
     def __init__(self, vocabulary_size: int, model_dimensions: int, number_of_attention_heads: int, number_of_layers: int, max_seq_length: int, device: str):
         super().__init__()
         self.device = device
