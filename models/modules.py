@@ -1,5 +1,8 @@
+import math
+
 import torch
 from torch import nn, Tensor
+from torch.nn import Linear, Dropout, Softmax
 
 
 class EmbeddingModule(nn.Module):
@@ -105,3 +108,56 @@ class EncoderModule(nn.Module):
         encoder_input = source_embedded + position_encodings
 
         # for layer in encoder_layers: etc.
+
+
+class MultiHeadSelfAttentionModule(nn.Module):
+
+    def __init__(self, model_dimensions: int, number_of_heads: int = 8, dropout_rate: float = 0.1, mask=None):
+        super().__init__()
+        self.number_of_heads: int = number_of_heads
+        self.model_dimensions: int = model_dimensions
+        self.dropout_rate: float = dropout_rate
+        self.mask: Tensor = mask
+
+        if model_dimensions % number_of_heads != 0:
+            raise ValueError("model_dimensions must be divisible by number of heads")
+        self.head_dimension = model_dimensions // number_of_heads
+
+        self.query_linear: Linear = nn.Linear(in_features=model_dimensions, out_features=model_dimensions)
+        self.key_linear: Linear = nn.Linear(in_features=model_dimensions, out_features=model_dimensions)
+        self.value_linear: Linear = nn.Linear(in_features=model_dimensions, out_features=model_dimensions)
+        self.dropout: Dropout = nn.Dropout(p=self.dropout_rate)
+        self.out_linear: Linear = nn.Linear(in_features=model_dimensions, out_features=model_dimensions)
+        self.softmax: Softmax = nn.Softmax()
+
+    def forward(self, x, do_dropout: bool = False):
+
+        queries: Tensor = self.query_linear(x)
+        keys: Tensor = self.key_linear(x)
+        values: Tensor = self.value_linear(x)
+
+        queries: Tensor = queries.view(x.shape[0], x.shape[1], self.number_of_heads, self.head_dimension)
+        keys: Tensor = keys.view(x.shape[0], x.shape[1], self.number_of_heads, self.head_dimension)
+        values: Tensor = values.view(x.shape[0], x.shape[1], self.number_of_heads, self.head_dimension)
+
+        queries = queries.transpose(1, 2).contiguous()
+        keys = keys.transpose(1, 2).contiguous()
+        values = values.transpose(1, 2).contiguous()
+
+        scores: Tensor = torch.matmul(input=queries, other=keys.transpose(-2, -1))
+        scores: Tensor = scores / math.sqrt(self.head_dimension)
+
+        if self.mask is not None:
+            mask = self.mask.unsqueeze()
+            scores = scores.masked_fill(mask == 0, -1e9)
+
+        scores = self.softmax(scores, dim=-1)
+
+        if do_dropout:
+            scores = self.dropout(scores)
+
+        out = torch.matmul(input=scores, other=values)
+        out = out.transpose(1, 2).contiguous().view(x.size(0), -1, self.model_dimensions)
+        out = self.out_linear(out)
+
+        return out
