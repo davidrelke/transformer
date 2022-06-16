@@ -38,7 +38,7 @@ class FeedForwardModule(nn.Module):
     Input (from Multi-head Attention) -> Linear -> ReLu -> Dropout -> Linear
     """
 
-    def __init__(self, model_dimensions: int, forward_expansion: int, dropout_rate: float = 0.1):
+    def  __init__(self, model_dimensions: int, forward_expansion: int, dropout_rate: float = 0.1):
         super().__init__()
         self.linear1 = nn.Linear(in_features=model_dimensions, out_features=model_dimensions * forward_expansion)
         self.dropout = nn.Dropout(p=dropout_rate)
@@ -56,7 +56,7 @@ class FeedForwardModule(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, model_dimensions, number_of_attention_heads: int, dropout_rate: float, forward_expansion: int):
         super().__init__()
-        # self.attention = MultiHeadAttentionModule()
+        self.attention = MultiHeadSelfAttentionModule(model_dimensions=model_dimensions, dropout_rate=dropout_rate, number_of_heads=number_of_attention_heads)
         self.feed_forward = FeedForwardModule(model_dimensions=model_dimensions, forward_expansion=forward_expansion, dropout_rate=dropout_rate)
         self.norm_1 = nn.LayerNorm(normalized_shape=model_dimensions)
         self.norm_2 = nn.LayerNorm(normalized_shape=model_dimensions)
@@ -67,9 +67,7 @@ class TransformerBlock(nn.Module):
         # We apply dropout [33 ] to the output of each sub-layer, before it is added to the sub-layer input and normalized.
         # Attention -> Dropout -> Residual -> Norm -> FF(Linear -> ReLu - > Dropout -> Linear) -> Dropout -> Residual -> Norm
 
-        # Multi Head Attention
-        # attention = self.attention(x)
-        attention = None
+        attention = self.attention(input)
         x = self.dropout_1(attention)  # First Dropout
         x = input + x  # First Residual
         attention_result = self.norm_1(x)  # First Normalization, Save result for residual
@@ -144,8 +142,7 @@ class MultiHeadSelfAttentionModule(nn.Module):
         keys = keys.transpose(1, 2).contiguous()
         values = values.transpose(1, 2).contiguous()
 
-        scores: Tensor = torch.matmul(input=queries, other=keys.transpose(-2, -1))
-        scores: Tensor = scores / math.sqrt(self.head_dimension)
+        scores: Tensor = torch.matmul(input=queries, other=keys.transpose(-2, -1)) / (self.model_dimensions ** (1/2))
 
         if self.mask is not None:
             mask = self.mask.unsqueeze()
