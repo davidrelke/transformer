@@ -38,7 +38,7 @@ class FeedForwardModule(nn.Module):
     Input (from Multi-head Attention) -> Linear -> ReLu -> Dropout -> Linear
     """
 
-    def  __init__(self, model_dimensions: int, forward_expansion: int, dropout_rate: float = 0.1):
+    def __init__(self, model_dimensions: int, forward_expansion: int, dropout_rate: float = 0.1):
         super().__init__()
         self.linear1 = nn.Linear(in_features=model_dimensions, out_features=model_dimensions * forward_expansion)
         self.dropout = nn.Dropout(p=dropout_rate)
@@ -80,6 +80,7 @@ class EncoderLayer(nn.Module):
 
         return x
 
+
 class DecoderLayer(nn.Module):
     def __init__(self, model_dimensions, number_of_attention_heads: int, dropout_rate: float, forward_expansion: int):
         super().__init__()
@@ -117,51 +118,6 @@ class DecoderLayer(nn.Module):
 
         return x
 
-
-class EncoderModule(nn.Module):
-    """
-    The whole Encoder
-    Consists of Input embedding and multiple Encoder Layers
-    """
-
-    def __init__(self, vocabulary_size: int, model_dimensions: int, number_of_attention_heads: int, number_of_layers: int, max_seq_length: int, forward_expansion: int, device: str):
-        super().__init__()
-        self.device = device
-        self.n_encoder_layers: int = number_of_layers
-        self.word_embedder = EmbeddingModule(vocabulary_size=vocabulary_size, model_dimensions=model_dimensions)
-        self.positional_encoder = PositionalEncoderModule(max_input_length=max_seq_length, model_dimensions=model_dimensions)
-
-        encoder_blocks = []
-        for i in range(number_of_layers):
-            encoder_blocks.append(EncoderLayer(model_dimensions=model_dimensions, number_of_attention_heads=number_of_attention_heads, forward_expansion=forward_expansion))
-
-        self.encoder_layers = nn.Sequential(*encoder_blocks)
-
-        self.norm = NormModule(model_dimensions=model_dimensions)
-        # create norm layer
-
-    def forward(self, source, mask):
-        number_of_samples, seq_length = source.shape
-        # positions: arange: 0123...seq_length -> expand: [0123...seq_length, 0123...seq_length, 0123...seq_length] number_of_samples times
-        positions: Tensor = torch.arange(start=0, end=seq_length).expand(number_of_samples, seq_length).to(self.device)
-
-        source_embedded = self.word_embedder(source)
-        position_encodings = self.positional_encoder(positions)
-        encoder_input = source_embedded + position_encodings
-        # Dropout?
-
-        x = self.encoder_layers(encoder_input, mask)
-        x = self.norm(x)
-        return x
-
-class DecoderModule(nn.Module):
-    def __init__(self, vocabulary_size: int, model_dimensions: int, number_of_attention_heads: int, number_of_layers: int, max_seq_length: int, forward_expansion: int, device: str):
-        super().__init__()
-        self.device = device
-        self.n_decoder_layers: int = number_of_layers
-
-
-
 class MultiHeadSelfAttentionModule(nn.Module):
     def __init__(self, model_dimensions: int, number_of_heads: int = 8, dropout_rate: float = 0.1):
         super().__init__()
@@ -194,7 +150,7 @@ class MultiHeadSelfAttentionModule(nn.Module):
         keys = keys.transpose(1, 2).contiguous()
         values = values.transpose(1, 2).contiguous()
 
-        scores: Tensor = torch.matmul(input=queries, other=keys.transpose(-2, -1)) / (self.model_dimensions ** (1/2))
+        scores: Tensor = torch.matmul(input=queries, other=keys.transpose(-2, -1)) / (self.model_dimensions ** (1 / 2))
 
         if mask is not None:
             mask = self.mask.unsqueeze()
@@ -213,7 +169,7 @@ class MultiHeadSelfAttentionModule(nn.Module):
 
 
 class NormModule(nn.Module):
-    def __init__(self, model_dimensions:int, eps=1e-6):
+    def __init__(self, model_dimensions: int, eps=1e-6):
         super().__init__()
 
         self.size = model_dimensions
